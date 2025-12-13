@@ -31,7 +31,7 @@ export default function Dashboard() {
     queryFn: () => metricsApi.getDashboard(30),
   })
 
-  const { data: trendData, isLoading: trendLoading } = useQuery({
+  const { data: trendData } = useQuery({
     queryKey: ['trend-metrics'],
     queryFn: () => metricsApi.getTrends(30, 'day'),
   })

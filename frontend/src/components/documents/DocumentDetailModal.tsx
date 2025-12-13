@@ -11,7 +11,6 @@ import {
   FileText,
   Clock,
   Zap,
-  Download,
   RefreshCw,
 } from 'lucide-react'
 import clsx from 'clsx'

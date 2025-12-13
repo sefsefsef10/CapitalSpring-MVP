@@ -13,6 +13,7 @@ from sqlalchemy.orm import selectinload
 from app.db.session import get_db
 from app.models.document import Document
 from app.models.exception import Exception as DocumentException, ExceptionStatus, ExceptionCategory, ExceptionPriority
+from app.models.audit import AuditLog, AuditAction
 from app.schemas.exception import (
     ExceptionList,
     ExceptionMetrics,
@@ -279,6 +280,23 @@ async def resolve_exception(
                 extracted_data[exception.field_name] = resolution.resolution[exception.field_name]
             exception.document.extracted_data = extracted_data
 
+    # Create audit log entry
+    audit_entry = AuditLog(
+        document_id=exception.document_id,
+        action=AuditAction.EXCEPTION_RESOLVED.value,
+        actor=user.email or user.uid,
+        actor_type="user",
+        details={
+            "exception_id": str(exception_id),
+            "exception_type": exception.exception_type,
+            "category": exception.category,
+            "resolution": resolution.resolution,
+            "resolution_notes": resolution.resolution_notes,
+            "apply_to_document": resolution.apply_to_document,
+        },
+    )
+    db.add(audit_entry)
+
     await db.commit()
     await db.refresh(exception)
 
@@ -316,6 +334,21 @@ async def ignore_exception(
     exception.resolved_by = user.email or user.uid
     exception.resolved_at = datetime.utcnow()
 
+    # Create audit log entry
+    audit_entry = AuditLog(
+        document_id=exception.document_id,
+        action=AuditAction.EXCEPTION_IGNORED.value,
+        actor=user.email or user.uid,
+        actor_type="user",
+        details={
+            "exception_id": str(exception_id),
+            "exception_type": exception.exception_type,
+            "category": exception.category,
+            "reason": reason or "Ignored by user",
+        },
+    )
+    db.add(audit_entry)
+
     await db.commit()
     await db.refresh(exception)
 
@@ -336,6 +369,7 @@ async def bulk_resolve_exceptions(
     """
     resolved_count = 0
     failed_ids = []
+    resolved_by = user.email or user.uid
 
     for exc_id in exception_ids:
         query = select(DocumentException).where(DocumentException.id == exc_id)
@@ -346,9 +380,26 @@ async def bulk_resolve_exceptions(
             exception.status = ExceptionStatus.RESOLVED.value
             exception.resolution = resolution.resolution
             exception.resolution_notes = resolution.resolution_notes
-            exception.resolved_by = resolution.resolved_by
+            exception.resolved_by = resolved_by
             exception.resolved_at = datetime.utcnow()
             resolved_count += 1
+
+            # Create audit log entry for each resolved exception
+            audit_entry = AuditLog(
+                document_id=exception.document_id,
+                action=AuditAction.EXCEPTION_RESOLVED.value,
+                actor=resolved_by,
+                actor_type="user",
+                details={
+                    "exception_id": str(exc_id),
+                    "exception_type": exception.exception_type,
+                    "category": exception.category,
+                    "resolution": resolution.resolution,
+                    "resolution_notes": resolution.resolution_notes,
+                    "bulk_operation": True,
+                },
+            )
+            db.add(audit_entry)
         else:
             failed_ids.append(str(exc_id))
 

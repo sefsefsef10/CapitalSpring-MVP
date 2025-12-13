@@ -1,8 +1,7 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import toast from 'react-hot-toast'
 import {
-  Settings as SettingsIcon,
   Save,
   RefreshCw,
   FileText,
@@ -12,6 +11,7 @@ import {
   Zap,
 } from 'lucide-react'
 import clsx from 'clsx'
+import api from '../services/api'
 
 interface ProcessorConfig {
   confidence_threshold: number
@@ -31,38 +31,128 @@ interface NotificationConfig {
   slack_webhook_url: string
 }
 
-export default function Settings() {
-  const [activeTab, setActiveTab] = useState('processing')
+interface AllSettings {
+  processing: ProcessorConfig
+  validation: ValidationConfig
+  notifications: NotificationConfig
+}
 
-  // Processing settings
+interface DatabaseStats {
+  documents_count: number
+  exceptions_count: number
+  audit_logs_count: number
+  connection_status: string
+  database_type: string
+  instance_name: string
+  region: string
+}
+
+interface DocumentTypeInfo {
+  type: string
+  processor: string
+  fallback: string
+  status: string
+}
+
+export default function Settings() {
+  const queryClient = useQueryClient()
+  const [activeTab, setActiveTab] = useState('processing')
+  const [hasChanges, setHasChanges] = useState(false)
+
+  // Fetch all settings
+  const { data: settings, isLoading: settingsLoading } = useQuery<AllSettings>({
+    queryKey: ['settings'],
+    queryFn: async () => {
+      const response = await api.get('/settings')
+      return response.data
+    },
+  })
+
+  // Fetch database stats
+  const { data: dbStats, isLoading: dbLoading } = useQuery<DatabaseStats>({
+    queryKey: ['settings', 'database'],
+    queryFn: async () => {
+      const response = await api.get('/settings/database')
+      return response.data
+    },
+  })
+
+  // Fetch document types
+  const { data: documentTypes, isLoading: docTypesLoading } = useQuery<DocumentTypeInfo[]>({
+    queryKey: ['settings', 'document-types'],
+    queryFn: async () => {
+      const response = await api.get('/settings/document-types')
+      return response.data
+    },
+  })
+
+  // Local state for editing
   const [processorConfig, setProcessorConfig] = useState<ProcessorConfig>({
     confidence_threshold: 0.85,
     fallback_to_claude: true,
     max_retries: 3,
   })
 
-  // Validation settings
   const [validationConfig, setValidationConfig] = useState<ValidationConfig>({
     strict_mode: true,
     required_fields_only: false,
     auto_create_exceptions: true,
   })
 
-  // Notification settings
   const [notificationConfig, setNotificationConfig] = useState<NotificationConfig>({
     email_on_exception: true,
     email_on_batch_complete: false,
     slack_webhook_url: '',
   })
 
-  const [isSaving, setIsSaving] = useState(false)
+  // Update local state when settings load
+  useEffect(() => {
+    if (settings) {
+      setProcessorConfig(settings.processing)
+      setValidationConfig(settings.validation)
+      setNotificationConfig(settings.notifications)
+      setHasChanges(false)
+    }
+  }, [settings])
 
-  const handleSave = async () => {
-    setIsSaving(true)
-    // Simulate API call
-    await new Promise((resolve) => setTimeout(resolve, 1000))
-    setIsSaving(false)
-    toast.success('Settings saved successfully')
+  // Save mutation
+  const saveMutation = useMutation({
+    mutationFn: async () => {
+      const response = await api.put('/settings', {
+        processing: processorConfig,
+        validation: validationConfig,
+        notifications: notificationConfig,
+      })
+      return response.data
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['settings'] })
+      toast.success('Settings saved successfully')
+      setHasChanges(false)
+    },
+    onError: (error: any) => {
+      toast.error(error.response?.data?.detail || 'Failed to save settings')
+    },
+  })
+
+  const handleSave = () => {
+    saveMutation.mutate()
+  }
+
+  // Track changes
+  const updateProcessorConfig = (updates: Partial<ProcessorConfig>) => {
+    setProcessorConfig({ ...processorConfig, ...updates })
+    setHasChanges(true)
+  }
+
+  const updateValidationConfig = (updates: Partial<ValidationConfig>) => {
+    setValidationConfig({ ...validationConfig, ...updates })
+    setHasChanges(true)
+  }
+
+  const updateNotificationConfig = (updates: Partial<NotificationConfig>) => {
+    setNotificationConfig({ ...notificationConfig, ...updates })
+    setHasChanges(true)
   }
 
   const tabs = [
@@ -73,6 +163,14 @@ export default function Settings() {
     { id: 'database', label: 'Database', icon: Database },
   ]
 
+  if (settingsLoading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <RefreshCw className="w-8 h-8 animate-spin text-primary-500" />
+      </div>
+    )
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -80,13 +178,20 @@ export default function Settings() {
           <h1 className="text-2xl font-bold text-gray-900">Settings</h1>
           <p className="text-gray-500">Configure system preferences and processing rules</p>
         </div>
-        <button onClick={handleSave} disabled={isSaving} className="btn-primary">
-          {isSaving ? (
+        <button
+          onClick={handleSave}
+          disabled={saveMutation.isPending || !hasChanges}
+          className={clsx(
+            'btn-primary',
+            !hasChanges && 'opacity-50 cursor-not-allowed'
+          )}
+        >
+          {saveMutation.isPending ? (
             <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
           ) : (
             <Save className="w-4 h-4 mr-2" />
           )}
-          {isSaving ? 'Saving...' : 'Save Changes'}
+          {saveMutation.isPending ? 'Saving...' : 'Save Changes'}
         </button>
       </div>
 
@@ -137,8 +242,7 @@ export default function Settings() {
                       step="0.01"
                       value={processorConfig.confidence_threshold}
                       onChange={(e) =>
-                        setProcessorConfig({
-                          ...processorConfig,
+                        updateProcessorConfig({
                           confidence_threshold: parseFloat(e.target.value),
                         })
                       }
@@ -161,8 +265,7 @@ export default function Settings() {
                   </div>
                   <button
                     onClick={() =>
-                      setProcessorConfig({
-                        ...processorConfig,
+                      updateProcessorConfig({
                         fallback_to_claude: !processorConfig.fallback_to_claude,
                       })
                     }
@@ -190,8 +293,7 @@ export default function Settings() {
                   <select
                     value={processorConfig.max_retries}
                     onChange={(e) =>
-                      setProcessorConfig({
-                        ...processorConfig,
+                      updateProcessorConfig({
                         max_retries: parseInt(e.target.value),
                       })
                     }
@@ -226,8 +328,7 @@ export default function Settings() {
                   </div>
                   <button
                     onClick={() =>
-                      setValidationConfig({
-                        ...validationConfig,
+                      updateValidationConfig({
                         strict_mode: !validationConfig.strict_mode,
                       })
                     }
@@ -256,8 +357,7 @@ export default function Settings() {
                   </div>
                   <button
                     onClick={() =>
-                      setValidationConfig({
-                        ...validationConfig,
+                      updateValidationConfig({
                         required_fields_only: !validationConfig.required_fields_only,
                       })
                     }
@@ -286,8 +386,7 @@ export default function Settings() {
                   </div>
                   <button
                     onClick={() =>
-                      setValidationConfig({
-                        ...validationConfig,
+                      updateValidationConfig({
                         auto_create_exceptions: !validationConfig.auto_create_exceptions,
                       })
                     }
@@ -327,8 +426,7 @@ export default function Settings() {
                   </div>
                   <button
                     onClick={() =>
-                      setNotificationConfig({
-                        ...notificationConfig,
+                      updateNotificationConfig({
                         email_on_exception: !notificationConfig.email_on_exception,
                       })
                     }
@@ -357,8 +455,7 @@ export default function Settings() {
                   </div>
                   <button
                     onClick={() =>
-                      setNotificationConfig({
-                        ...notificationConfig,
+                      updateNotificationConfig({
                         email_on_batch_complete: !notificationConfig.email_on_batch_complete,
                       })
                     }
@@ -387,8 +484,7 @@ export default function Settings() {
                     type="url"
                     value={notificationConfig.slack_webhook_url}
                     onChange={(e) =>
-                      setNotificationConfig({
-                        ...notificationConfig,
+                      updateNotificationConfig({
                         slack_webhook_url: e.target.value,
                       })
                     }
@@ -407,49 +503,44 @@ export default function Settings() {
                 View supported document types and their processing rules.
               </p>
 
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead className="bg-gray-50">
-                    <tr>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                        Document Type
-                      </th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                        Primary Processor
-                      </th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                        Fallback
-                      </th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                        Status
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y">
-                    {[
-                      { type: 'Portfolio Financials', processor: 'Document AI Form', fallback: 'Claude', status: 'Active' },
-                      { type: 'Covenant Compliance', processor: 'Document AI Form', fallback: 'Claude', status: 'Active' },
-                      { type: 'Borrowing Base', processor: 'Document AI Form', fallback: 'Claude', status: 'Active' },
-                      { type: 'Capital Call', processor: 'Document AI Invoice', fallback: 'Claude', status: 'Active' },
-                      { type: 'Distribution Notice', processor: 'Document AI Invoice', fallback: 'Claude', status: 'Active' },
-                      { type: 'NAV Statement', processor: 'Document AI Form', fallback: 'Claude', status: 'Active' },
-                      { type: 'AR Aging', processor: 'Document AI Form', fallback: 'OCR', status: 'Active' },
-                      { type: 'Bank Statement', processor: 'Document AI Form', fallback: 'OCR', status: 'Active' },
-                      { type: 'Invoice', processor: 'Document AI Invoice', fallback: 'Form Parser', status: 'Active' },
-                      { type: 'Insurance Certificate', processor: 'Document AI Invoice', fallback: 'Claude', status: 'Active' },
-                    ].map((doc, idx) => (
-                      <tr key={idx} className="hover:bg-gray-50">
-                        <td className="px-4 py-3 text-sm text-gray-900">{doc.type}</td>
-                        <td className="px-4 py-3 text-sm text-gray-600">{doc.processor}</td>
-                        <td className="px-4 py-3 text-sm text-gray-600">{doc.fallback}</td>
-                        <td className="px-4 py-3">
-                          <span className="badge badge-success">{doc.status}</span>
-                        </td>
+              {docTypesLoading ? (
+                <div className="flex items-center justify-center h-32">
+                  <RefreshCw className="w-6 h-6 animate-spin text-primary-500" />
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                          Document Type
+                        </th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                          Primary Processor
+                        </th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                          Fallback
+                        </th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                          Status
+                        </th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+                    </thead>
+                    <tbody className="divide-y">
+                      {(documentTypes || []).map((doc, idx) => (
+                        <tr key={idx} className="hover:bg-gray-50">
+                          <td className="px-4 py-3 text-sm text-gray-900">{doc.type}</td>
+                          <td className="px-4 py-3 text-sm text-gray-600">{doc.processor}</td>
+                          <td className="px-4 py-3 text-sm text-gray-600">{doc.fallback}</td>
+                          <td className="px-4 py-3">
+                            <span className="badge badge-success">{doc.status}</span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </div>
           )}
 
@@ -460,45 +551,61 @@ export default function Settings() {
                 View database connection status and statistics.
               </p>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div className="p-4 bg-gray-50 rounded-lg">
-                  <p className="text-sm text-gray-500">Connection Status</p>
-                  <p className="text-lg font-semibold text-success-600 flex items-center gap-2">
-                    <span className="w-2 h-2 bg-success-500 rounded-full animate-pulse"></span>
-                    Connected
-                  </p>
+              {dbLoading ? (
+                <div className="flex items-center justify-center h-32">
+                  <RefreshCw className="w-6 h-6 animate-spin text-primary-500" />
                 </div>
-                <div className="p-4 bg-gray-50 rounded-lg">
-                  <p className="text-sm text-gray-500">Database Type</p>
-                  <p className="text-lg font-semibold text-gray-900">PostgreSQL 15</p>
-                </div>
-                <div className="p-4 bg-gray-50 rounded-lg">
-                  <p className="text-sm text-gray-500">Cloud SQL Instance</p>
-                  <p className="text-lg font-semibold text-gray-900">capitalspring-dev</p>
-                </div>
-                <div className="p-4 bg-gray-50 rounded-lg">
-                  <p className="text-sm text-gray-500">Region</p>
-                  <p className="text-lg font-semibold text-gray-900">us-central1</p>
-                </div>
-              </div>
+              ) : dbStats ? (
+                <>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="p-4 bg-gray-50 rounded-lg">
+                      <p className="text-sm text-gray-500">Connection Status</p>
+                      <p className={clsx(
+                        'text-lg font-semibold flex items-center gap-2',
+                        dbStats.connection_status === 'connected' ? 'text-success-600' : 'text-error-600'
+                      )}>
+                        <span className={clsx(
+                          'w-2 h-2 rounded-full',
+                          dbStats.connection_status === 'connected' ? 'bg-success-500 animate-pulse' : 'bg-error-500'
+                        )}></span>
+                        {dbStats.connection_status === 'connected' ? 'Connected' : 'Error'}
+                      </p>
+                    </div>
+                    <div className="p-4 bg-gray-50 rounded-lg">
+                      <p className="text-sm text-gray-500">Database Type</p>
+                      <p className="text-lg font-semibold text-gray-900">{dbStats.database_type}</p>
+                    </div>
+                    <div className="p-4 bg-gray-50 rounded-lg">
+                      <p className="text-sm text-gray-500">Cloud SQL Instance</p>
+                      <p className="text-lg font-semibold text-gray-900">{dbStats.instance_name}</p>
+                    </div>
+                    <div className="p-4 bg-gray-50 rounded-lg">
+                      <p className="text-sm text-gray-500">Region</p>
+                      <p className="text-lg font-semibold text-gray-900">{dbStats.region}</p>
+                    </div>
+                  </div>
 
-              <div className="border-t pt-6">
-                <h3 className="text-sm font-medium text-gray-700 mb-4">Table Statistics</h3>
-                <div className="grid grid-cols-3 gap-4">
-                  <div className="text-center p-4 bg-primary-50 rounded-lg">
-                    <p className="text-3xl font-bold text-primary-600">0</p>
-                    <p className="text-sm text-gray-500">Documents</p>
+                  <div className="border-t pt-6">
+                    <h3 className="text-sm font-medium text-gray-700 mb-4">Table Statistics</h3>
+                    <div className="grid grid-cols-3 gap-4">
+                      <div className="text-center p-4 bg-primary-50 rounded-lg">
+                        <p className="text-3xl font-bold text-primary-600">{dbStats.documents_count}</p>
+                        <p className="text-sm text-gray-500">Documents</p>
+                      </div>
+                      <div className="text-center p-4 bg-warning-50 rounded-lg">
+                        <p className="text-3xl font-bold text-warning-600">{dbStats.exceptions_count}</p>
+                        <p className="text-sm text-gray-500">Exceptions</p>
+                      </div>
+                      <div className="text-center p-4 bg-gray-100 rounded-lg">
+                        <p className="text-3xl font-bold text-gray-600">{dbStats.audit_logs_count}</p>
+                        <p className="text-sm text-gray-500">Audit Logs</p>
+                      </div>
+                    </div>
                   </div>
-                  <div className="text-center p-4 bg-warning-50 rounded-lg">
-                    <p className="text-3xl font-bold text-warning-600">0</p>
-                    <p className="text-sm text-gray-500">Exceptions</p>
-                  </div>
-                  <div className="text-center p-4 bg-gray-100 rounded-lg">
-                    <p className="text-3xl font-bold text-gray-600">0</p>
-                    <p className="text-sm text-gray-500">Audit Logs</p>
-                  </div>
-                </div>
-              </div>
+                </>
+              ) : (
+                <p className="text-gray-500">Unable to load database stats</p>
+              )}
             </div>
           )}
         </div>

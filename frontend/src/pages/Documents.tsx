@@ -7,7 +7,6 @@ import {
   Search,
   Filter,
   RefreshCw,
-  Download,
   Trash2,
   Eye,
   ChevronLeft,

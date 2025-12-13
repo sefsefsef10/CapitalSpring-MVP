@@ -53,7 +53,6 @@ export default function Exceptions() {
         page_size: 20,
         status: statusFilter || undefined,
         priority: priorityFilter || undefined,
-        search: search || undefined,
       }),
   })
 
@@ -64,7 +63,11 @@ export default function Exceptions() {
 
   const resolveMutation = useMutation({
     mutationFn: ({ id, data }: { id: string; data: { resolution_notes: string; corrected_value?: string } }) =>
-      exceptionsApi.resolve(id, data),
+      exceptionsApi.resolve(id, {
+        resolution: data.corrected_value ? { corrected_value: data.corrected_value } : {},
+        resolution_notes: data.resolution_notes,
+        resolved_by: 'user',
+      }),
     onSuccess: () => {
       toast.success('Exception resolved')
       queryClient.invalidateQueries({ queryKey: ['exceptions'] })
@@ -94,7 +97,11 @@ export default function Exceptions() {
 
   const bulkResolveMutation = useMutation({
     mutationFn: (data: { exception_ids: string[]; resolution_notes: string }) =>
-      exceptionsApi.bulkResolve(data),
+      exceptionsApi.bulkResolve(data.exception_ids, {
+        resolution: {},
+        resolution_notes: data.resolution_notes,
+        resolved_by: 'user',
+      }),
     onSuccess: (result) => {
       toast.success(`${result.resolved_count} exceptions resolved`)
       queryClient.invalidateQueries({ queryKey: ['exceptions'] })
@@ -214,8 +221,8 @@ export default function Exceptions() {
                 <CheckCircle className="w-5 h-5 text-success-600" />
               </div>
               <div>
-                <p className="text-sm text-gray-500">Resolved Today</p>
-                <p className="text-xl font-bold text-gray-900">{metrics.resolved_today}</p>
+                <p className="text-sm text-gray-500">Resolved</p>
+                <p className="text-xl font-bold text-gray-900">{metrics.resolved_count}</p>
               </div>
             </div>
           </div>
@@ -227,7 +234,7 @@ export default function Exceptions() {
               <div>
                 <p className="text-sm text-gray-500">Avg Resolution</p>
                 <p className="text-xl font-bold text-gray-900">
-                  {metrics.avg_resolution_hours?.toFixed(1) || 0}h
+                  {metrics.avg_resolution_time_hours?.toFixed(1) || 0}h
                 </p>
               </div>
             </div>
@@ -383,7 +390,7 @@ export default function Exceptions() {
                         <div className="flex items-center gap-2">
                           <FileText className="w-4 h-4 text-gray-400" />
                           <span className="text-sm text-gray-600 truncate max-w-[150px]">
-                            {exc.document?.original_filename || 'Unknown'}
+                            {exc.document_filename || 'Unknown'}
                           </span>
                         </div>
                       </td>
@@ -540,15 +547,15 @@ export default function Exceptions() {
                 </div>
 
                 {/* Document Reference */}
-                {selectedExc.document && (
+                {selectedExc.document_filename && (
                   <div>
                     <label className="text-sm font-medium text-gray-500">Source Document</label>
                     <div className="flex items-center gap-3 mt-1 p-3 bg-gray-50 rounded-lg">
                       <FileText className="w-5 h-5 text-gray-400" />
                       <div>
-                        <p className="text-gray-900">{selectedExc.document.original_filename}</p>
+                        <p className="text-gray-900">{selectedExc.document_filename}</p>
                         <p className="text-sm text-gray-500">
-                          {selectedExc.document.doc_type?.replace(/_/g, ' ')}
+                          {selectedExc.document_type?.replace(/_/g, ' ')}
                         </p>
                       </div>
                     </div>
@@ -600,19 +607,21 @@ export default function Exceptions() {
                       </button>
                     </div>
                   </div>
-                ) : selectedExc.resolution ? (
+                ) : selectedExc.resolution || selectedExc.resolution_notes ? (
                   <div className="border-t pt-6">
                     <h4 className="font-medium text-gray-900 mb-3">Resolution</h4>
                     <div className="bg-success-50 rounded-lg p-4 space-y-2">
-                      {selectedExc.resolution.corrected_value && (
+                      {selectedExc.resolution && !!(selectedExc.resolution as Record<string, unknown>).corrected_value && (
                         <div>
                           <span className="text-sm text-gray-500">Corrected Value: </span>
                           <span className="font-mono text-success-700">
-                            {selectedExc.resolution.corrected_value}
+                            {String((selectedExc.resolution as Record<string, unknown>).corrected_value)}
                           </span>
                         </div>
                       )}
-                      <p className="text-gray-700">{selectedExc.resolution.notes}</p>
+                      {selectedExc.resolution_notes && (
+                        <p className="text-gray-700">{selectedExc.resolution_notes}</p>
+                      )}
                       <p className="text-sm text-gray-500">
                         Resolved by {selectedExc.resolved_by} on{' '}
                         {selectedExc.resolved_at && formatDate(selectedExc.resolved_at)}

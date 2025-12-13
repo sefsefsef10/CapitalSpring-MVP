@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { useQuery, useMutation } from '@tanstack/react-query'
 import { X, Download, FileSpreadsheet, Loader2 } from 'lucide-react'
 import toast from 'react-hot-toast'
@@ -43,7 +43,8 @@ export default function ExportModal({
     mutationFn: () =>
       exportApi.generateExcel({
         document_ids: documentIds,
-        template: selectedTemplate,
+        template: selectedTemplate as import('../../types').ExportTemplate,
+        format: 'xlsx',
         include_raw_data: includeRawData,
         include_confidence_scores: includeConfidenceScores,
       }),

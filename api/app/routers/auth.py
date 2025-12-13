@@ -3,12 +3,17 @@
 from typing import Optional
 
 import structlog
-from fastapi import APIRouter, Depends, HTTPException, Header, status
+from fastapi import APIRouter, Depends, HTTPException, Header, Request, status
 from pydantic import BaseModel, EmailStr
+from slowapi import Limiter
+from slowapi.util import get_remote_address
 
 logger = structlog.get_logger(__name__)
 
 router = APIRouter()
+
+# Rate limiter for auth endpoints - stricter limits
+limiter = Limiter(key_func=get_remote_address)
 
 
 class UserInfo(BaseModel):
@@ -106,7 +111,8 @@ def require_auth(user: Optional[UserInfo] = Depends(get_current_user)) -> UserIn
 
 
 @router.post("/verify", response_model=TokenVerifyResponse)
-async def verify_token(request: TokenVerifyRequest) -> TokenVerifyResponse:
+@limiter.limit("10/minute")
+async def verify_token(request: Request, token_request: TokenVerifyRequest) -> TokenVerifyResponse:
     """
     Verify a Firebase ID token and return user information.
     """
@@ -131,7 +137,7 @@ async def verify_token(request: TokenVerifyRequest) -> TokenVerifyResponse:
         if not firebase_admin._apps:
             firebase_admin.initialize_app()
 
-        decoded_token = firebase_auth.verify_id_token(request.id_token)
+        decoded_token = firebase_auth.verify_id_token(token_request.id_token)
 
         return TokenVerifyResponse(
             valid=True,
