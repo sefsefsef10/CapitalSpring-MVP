@@ -7,6 +7,7 @@ substitutions:
   _API_SERVICE_NAME: capitalspring-api
   _FRONTEND_SERVICE_NAME: capitalspring-frontend
   _ARTIFACT_REGISTRY: ${_REGION}-docker.pkg.dev/${PROJECT_ID}/capitalspring
+  _TAG: latest
 
 options:
   logging: CLOUD_LOGGING_ONLY
@@ -23,7 +24,7 @@ steps:
     args:
       - 'build'
       - '-t'
-      - '${_ARTIFACT_REGISTRY}/${_API_SERVICE_NAME}:${SHORT_SHA}'
+      - '${_ARTIFACT_REGISTRY}/${_API_SERVICE_NAME}:${_TAG}'
       - '-t'
       - '${_ARTIFACT_REGISTRY}/${_API_SERVICE_NAME}:latest'
       - '-f'
@@ -37,7 +38,7 @@ steps:
     args:
       - 'build'
       - '-t'
-      - '${_ARTIFACT_REGISTRY}/${_FRONTEND_SERVICE_NAME}:${SHORT_SHA}'
+      - '${_ARTIFACT_REGISTRY}/${_FRONTEND_SERVICE_NAME}:${_TAG}'
       - '-t'
       - '${_ARTIFACT_REGISTRY}/${_FRONTEND_SERVICE_NAME}:latest'
       - '-f'
@@ -79,7 +80,7 @@ steps:
       - 'deploy'
       - '${_API_SERVICE_NAME}'
       - '--image'
-      - '${_ARTIFACT_REGISTRY}/${_API_SERVICE_NAME}:${SHORT_SHA}'
+      - '${_ARTIFACT_REGISTRY}/${_API_SERVICE_NAME}:${_TAG}'
       - '--region'
       - '${_REGION}'
       - '--platform'
@@ -117,7 +118,7 @@ steps:
       - 'deploy'
       - '${_FRONTEND_SERVICE_NAME}'
       - '--image'
-      - '${_ARTIFACT_REGISTRY}/${_FRONTEND_SERVICE_NAME}:${SHORT_SHA}'
+      - '${_ARTIFACT_REGISTRY}/${_FRONTEND_SERVICE_NAME}:${_TAG}'
       - '--region'
       - '${_REGION}'
       - '--platform'
@@ -171,9 +172,9 @@ steps:
 
 # Images to be pushed
 images:
-  - '${_ARTIFACT_REGISTRY}/${_API_SERVICE_NAME}:${SHORT_SHA}'
+  - '${_ARTIFACT_REGISTRY}/${_API_SERVICE_NAME}:${_TAG}'
   - '${_ARTIFACT_REGISTRY}/${_API_SERVICE_NAME}:latest'
-  - '${_ARTIFACT_REGISTRY}/${_FRONTEND_SERVICE_NAME}:${SHORT_SHA}'
+  - '${_ARTIFACT_REGISTRY}/${_FRONTEND_SERVICE_NAME}:${_TAG}'
   - '${_ARTIFACT_REGISTRY}/${_FRONTEND_SERVICE_NAME}:latest'
 
 # Build timeout
