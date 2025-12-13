@@ -1,0 +1,27 @@
+# Minimal requirements for local development (Python 3.14 compatible)
+# Pure Python packages only - no compilation required
+
+# Web Framework
+fastapi>=0.109.0
+uvicorn>=0.27.0
+python-multipart>=0.0.9
+
+# Data Validation
+pydantic>=2.6.0
+pydantic-settings>=2.2.0
+
+# Database (SQLite for local)
+sqlalchemy>=2.0.27
+aiosqlite>=0.19.0
+alembic>=1.13.0
+
+# Excel Processing
+openpyxl>=3.1.0
+
+# HTTP Client
+httpx>=0.27.0
+
+# Utilities
+structlog>=24.1.0
+tenacity>=8.2.0
+python-dateutil>=2.8.0

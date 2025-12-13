@@ -1,0 +1,22 @@
+# Include production dependencies
+-r requirements.txt
+
+# Testing
+pytest==8.0.0
+pytest-asyncio==0.23.4
+pytest-cov==4.1.0
+pytest-mock==3.12.0
+httpx==0.27.0
+factory-boy==3.3.0
+
+# Type Checking
+mypy==1.8.0
+types-python-dateutil==2.8.19.20240106
+
+# Linting & Formatting
+ruff==0.2.1
+black==24.2.0
+
+# Development
+pre-commit==3.6.0
+watchfiles==0.21.0

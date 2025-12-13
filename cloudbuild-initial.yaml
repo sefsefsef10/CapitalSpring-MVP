@@ -1,0 +1,180 @@
+# CapitalSpring Initial Deployment
+# Simplified Cloud Build for first-time deployment
+# Run migrations manually from Cloud Shell before deploying
+
+substitutions:
+  _REGION: us-central1
+  _API_SERVICE_NAME: capitalspring-api
+  _FRONTEND_SERVICE_NAME: capitalspring-frontend
+  _ARTIFACT_REGISTRY: ${_REGION}-docker.pkg.dev/${PROJECT_ID}/capitalspring
+
+options:
+  logging: CLOUD_LOGGING_ONLY
+  machineType: E2_HIGHCPU_8
+
+steps:
+  # ============================================
+  # Stage 1: Build Docker Images (Parallel)
+  # ============================================
+
+  # Build API Docker image
+  - id: 'build-api'
+    name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'build'
+      - '-t'
+      - '${_ARTIFACT_REGISTRY}/${_API_SERVICE_NAME}:${SHORT_SHA}'
+      - '-t'
+      - '${_ARTIFACT_REGISTRY}/${_API_SERVICE_NAME}:latest'
+      - '-f'
+      - 'api/Dockerfile'
+      - 'api'
+    waitFor: ['-']
+
+  # Build Frontend Docker image
+  - id: 'build-frontend'
+    name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'build'
+      - '-t'
+      - '${_ARTIFACT_REGISTRY}/${_FRONTEND_SERVICE_NAME}:${SHORT_SHA}'
+      - '-t'
+      - '${_ARTIFACT_REGISTRY}/${_FRONTEND_SERVICE_NAME}:latest'
+      - '-f'
+      - 'frontend/Dockerfile'
+      - 'frontend'
+      - '--build-arg'
+      - 'VITE_API_URL=https://${_API_SERVICE_NAME}-${PROJECT_NUMBER}.${_REGION}.run.app'
+    waitFor: ['-']
+
+  # ============================================
+  # Stage 2: Push to Artifact Registry (Parallel)
+  # ============================================
+
+  - id: 'push-api'
+    name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'push'
+      - '--all-tags'
+      - '${_ARTIFACT_REGISTRY}/${_API_SERVICE_NAME}'
+    waitFor: ['build-api']
+
+  - id: 'push-frontend'
+    name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'push'
+      - '--all-tags'
+      - '${_ARTIFACT_REGISTRY}/${_FRONTEND_SERVICE_NAME}'
+    waitFor: ['build-frontend']
+
+  # ============================================
+  # Stage 3: Deploy to Cloud Run
+  # ============================================
+
+  # Deploy API to Cloud Run
+  - id: 'deploy-api'
+    name: 'gcr.io/cloud-builders/gcloud'
+    args:
+      - 'run'
+      - 'deploy'
+      - '${_API_SERVICE_NAME}'
+      - '--image'
+      - '${_ARTIFACT_REGISTRY}/${_API_SERVICE_NAME}:${SHORT_SHA}'
+      - '--region'
+      - '${_REGION}'
+      - '--platform'
+      - 'managed'
+      - '--allow-unauthenticated'
+      - '--set-env-vars'
+      - 'ENVIRONMENT=staging,USE_GCP=true,GCP_PROJECT_ID=${PROJECT_ID},GCS_BUCKET_NAME=${PROJECT_ID}-data,LOG_LEVEL=INFO,DOCUMENT_AI_LOCATION=us,CORS_ORIGINS=["https://${_FRONTEND_SERVICE_NAME}-${PROJECT_NUMBER}.${_REGION}.run.app"]'
+      - '--set-secrets'
+      - 'ANTHROPIC_API_KEY=anthropic-api-key:latest,DATABASE_URL=capitalspring-db-url:latest'
+      - '--vpc-connector'
+      - 'capitalspring-connector'
+      - '--add-cloudsql-instances'
+      - '${PROJECT_ID}:${_REGION}:capitalspring-dev'
+      - '--cpu'
+      - '2'
+      - '--memory'
+      - '2Gi'
+      - '--min-instances'
+      - '0'
+      - '--max-instances'
+      - '10'
+      - '--concurrency'
+      - '80'
+      - '--timeout'
+      - '300'
+      - '--service-account'
+      - 'capitalspring-api-sa@${PROJECT_ID}.iam.gserviceaccount.com'
+    waitFor: ['push-api']
+
+  # Deploy Frontend to Cloud Run
+  - id: 'deploy-frontend'
+    name: 'gcr.io/cloud-builders/gcloud'
+    args:
+      - 'run'
+      - 'deploy'
+      - '${_FRONTEND_SERVICE_NAME}'
+      - '--image'
+      - '${_ARTIFACT_REGISTRY}/${_FRONTEND_SERVICE_NAME}:${SHORT_SHA}'
+      - '--region'
+      - '${_REGION}'
+      - '--platform'
+      - 'managed'
+      - '--allow-unauthenticated'
+      - '--cpu'
+      - '1'
+      - '--memory'
+      - '512Mi'
+      - '--min-instances'
+      - '0'
+      - '--max-instances'
+      - '5'
+    waitFor: ['push-frontend', 'deploy-api']
+
+  # ============================================
+  # Stage 4: Smoke Tests
+  # ============================================
+
+  - id: 'smoke-test'
+    name: 'gcr.io/cloud-builders/curl'
+    entrypoint: bash
+    args:
+      - '-c'
+      - |
+        API_URL=$(gcloud run services describe ${_API_SERVICE_NAME} --region=${_REGION} --format='value(status.url)')
+        echo "Testing API health endpoint: $${API_URL}/health"
+
+        # Wait for service to be ready
+        for i in {1..10}; do
+          HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" "$${API_URL}/health")
+          if [ "$$HTTP_CODE" = "200" ]; then
+            echo "API health check passed!"
+            break
+          fi
+          echo "Attempt $$i: Got HTTP $$HTTP_CODE, retrying in 5s..."
+          sleep 5
+        done
+
+        if [ "$$HTTP_CODE" != "200" ]; then
+          echo "Health check failed after 10 attempts"
+          exit 1
+        fi
+
+        echo "Deployment successful!"
+        echo ""
+        echo "API URL: $${API_URL}"
+        FRONTEND_URL=$(gcloud run services describe ${_FRONTEND_SERVICE_NAME} --region=${_REGION} --format='value(status.url)')
+        echo "Frontend URL: $${FRONTEND_URL}"
+    waitFor: ['deploy-frontend']
+
+# Images to be pushed
+images:
+  - '${_ARTIFACT_REGISTRY}/${_API_SERVICE_NAME}:${SHORT_SHA}'
+  - '${_ARTIFACT_REGISTRY}/${_API_SERVICE_NAME}:latest'
+  - '${_ARTIFACT_REGISTRY}/${_FRONTEND_SERVICE_NAME}:${SHORT_SHA}'
+  - '${_ARTIFACT_REGISTRY}/${_FRONTEND_SERVICE_NAME}:latest'
+
+# Build timeout
+timeout: 1200s

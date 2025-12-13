@@ -1,0 +1,4 @@
+Invoice Number,Date,Vendor,Amount,Description
+INV-2024-001,2024-12-01,Acme Corp,15000.00,Consulting Services
+INV-2024-002,2024-12-05,Beta LLC,8500.00,Software License
+INV-2024-003,2024-12-10,Capital Partners,25000.00,Management Fee
