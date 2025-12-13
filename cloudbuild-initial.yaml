@@ -14,7 +14,7 @@ options:
 
 steps:
   # ============================================
-  # Stage 1: Build Docker Images (Parallel)
+  # Stage 1: Build and Deploy API First
   # ============================================
 
   # Build API Docker image
@@ -29,27 +29,6 @@ steps:
       - '-f'
       - 'api/Dockerfile'
       - 'api'
-    waitFor: ['-']
-
-  # Build Frontend Docker image
-  - id: 'build-frontend'
-    name: 'gcr.io/cloud-builders/docker'
-    args:
-      - 'build'
-      - '-t'
-      - 'us-central1-docker.pkg.dev/${PROJECT_ID}/capitalspring/${_FRONTEND_SERVICE_NAME}:${_TAG}'
-      - '-t'
-      - 'us-central1-docker.pkg.dev/${PROJECT_ID}/capitalspring/${_FRONTEND_SERVICE_NAME}:latest'
-      - '-f'
-      - 'frontend/Dockerfile'
-      - 'frontend'
-      - '--build-arg'
-      - 'VITE_API_URL=https://${_API_SERVICE_NAME}-${PROJECT_NUMBER}.${_REGION}.run.app'
-    waitFor: ['-']
-
-  # ============================================
-  # Stage 2: Push to Artifact Registry (Parallel)
-  # ============================================
 
   - id: 'push-api'
     name: 'gcr.io/cloud-builders/docker'
@@ -59,19 +38,7 @@ steps:
       - 'us-central1-docker.pkg.dev/${PROJECT_ID}/capitalspring/${_API_SERVICE_NAME}'
     waitFor: ['build-api']
 
-  - id: 'push-frontend'
-    name: 'gcr.io/cloud-builders/docker'
-    args:
-      - 'push'
-      - '--all-tags'
-      - 'us-central1-docker.pkg.dev/${PROJECT_ID}/capitalspring/${_FRONTEND_SERVICE_NAME}'
-    waitFor: ['build-frontend']
-
-  # ============================================
-  # Stage 3: Deploy to Cloud Run
-  # ============================================
-
-  # Deploy API to Cloud Run
+  # Deploy API to Cloud Run first to get its URL
   - id: 'deploy-api'
     name: 'gcr.io/cloud-builders/gcloud'
     args:
@@ -86,7 +53,7 @@ steps:
       - 'managed'
       - '--allow-unauthenticated'
       - '--set-env-vars'
-      - 'ENVIRONMENT=staging,USE_GCP=true,GCP_PROJECT_ID=${PROJECT_ID},GCS_BUCKET_NAME=${PROJECT_ID}-data,LOG_LEVEL=INFO,DOCUMENT_AI_LOCATION=us,CORS_ORIGINS=["https://${_FRONTEND_SERVICE_NAME}-${PROJECT_NUMBER}.${_REGION}.run.app"]'
+      - 'ENVIRONMENT=staging,USE_GCP=true,GCP_PROJECT_ID=${PROJECT_ID},GCS_BUCKET_NAME=${PROJECT_ID}-data,LOG_LEVEL=INFO,DOCUMENT_AI_LOCATION=us,CORS_ORIGINS=*'
       - '--set-secrets'
       - 'ANTHROPIC_API_KEY=anthropic-api-key:latest,DATABASE_URL=capitalspring-db-url:latest'
       - '--vpc-connector'
@@ -109,7 +76,42 @@ steps:
       - 'capitalspring-api-sa@${PROJECT_ID}.iam.gserviceaccount.com'
     waitFor: ['push-api']
 
-  # Deploy Frontend to Cloud Run
+  # ============================================
+  # Stage 2: Build Frontend with API URL
+  # ============================================
+
+  # Get API URL and build frontend
+  - id: 'build-frontend'
+    name: 'gcr.io/cloud-builders/docker'
+    entrypoint: bash
+    args:
+      - '-c'
+      - |
+        # Get the deployed API URL
+        API_URL=$(gcloud run services describe ${_API_SERVICE_NAME} --region=${_REGION} --format='value(status.url)')
+        echo "Building frontend with API URL: $${API_URL}"
+
+        # Build frontend with the actual API URL
+        docker build \
+          -t us-central1-docker.pkg.dev/${PROJECT_ID}/capitalspring/${_FRONTEND_SERVICE_NAME}:${_TAG} \
+          -t us-central1-docker.pkg.dev/${PROJECT_ID}/capitalspring/${_FRONTEND_SERVICE_NAME}:latest \
+          -f frontend/Dockerfile \
+          --build-arg VITE_API_URL=$${API_URL}/api/v1 \
+          frontend
+    waitFor: ['deploy-api']
+
+  - id: 'push-frontend'
+    name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'push'
+      - '--all-tags'
+      - 'us-central1-docker.pkg.dev/${PROJECT_ID}/capitalspring/${_FRONTEND_SERVICE_NAME}'
+    waitFor: ['build-frontend']
+
+  # ============================================
+  # Stage 3: Deploy Frontend
+  # ============================================
+
   - id: 'deploy-frontend'
     name: 'gcr.io/cloud-builders/gcloud'
     args:
@@ -131,10 +133,28 @@ steps:
       - '0'
       - '--max-instances'
       - '5'
-    waitFor: ['push-frontend', 'deploy-api']
+    waitFor: ['push-frontend']
 
   # ============================================
-  # Stage 4: Smoke Tests
+  # Stage 4: Update API CORS with Frontend URL
+  # ============================================
+
+  - id: 'update-cors'
+    name: 'gcr.io/cloud-builders/gcloud'
+    entrypoint: bash
+    args:
+      - '-c'
+      - |
+        FRONTEND_URL=$(gcloud run services describe ${_FRONTEND_SERVICE_NAME} --region=${_REGION} --format='value(status.url)')
+        echo "Updating API CORS to allow: $${FRONTEND_URL}"
+
+        gcloud run services update ${_API_SERVICE_NAME} \
+          --region=${_REGION} \
+          --update-env-vars="CORS_ORIGINS=[\"$${FRONTEND_URL}\",\"http://localhost:5173\"]"
+    waitFor: ['deploy-frontend']
+
+  # ============================================
+  # Stage 5: Smoke Tests
   # ============================================
 
   - id: 'smoke-test'
@@ -162,12 +182,15 @@ steps:
           exit 1
         fi
 
-        echo "Deployment successful!"
         echo ""
+        echo "========================================="
+        echo "DEPLOYMENT SUCCESSFUL!"
+        echo "========================================="
         echo "API URL: $${API_URL}"
         FRONTEND_URL=$(gcloud run services describe ${_FRONTEND_SERVICE_NAME} --region=${_REGION} --format='value(status.url)')
         echo "Frontend URL: $${FRONTEND_URL}"
-    waitFor: ['deploy-frontend']
+        echo "========================================="
+    waitFor: ['update-cors']
 
 # Images to be pushed
 images:
@@ -177,4 +200,4 @@ images:
   - 'us-central1-docker.pkg.dev/${PROJECT_ID}/capitalspring/${_FRONTEND_SERVICE_NAME}:latest'
 
 # Build timeout
-timeout: 1200s
+timeout: 1800s
