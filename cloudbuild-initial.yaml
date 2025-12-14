@@ -104,7 +104,7 @@ steps:
       - '-f'
       - 'frontend/Dockerfile'
       - '--build-arg'
-      - 'VITE_API_URL=https://capitalspring-api-lammgoktvq-uc.a.run.app/api/v1'
+      - 'VITE_API_URL=https://capitalspring-api-nvpdrbsjda-uc.a.run.app/api/v1'
       - 'frontend'
     waitFor: ['get-api-url']
 
