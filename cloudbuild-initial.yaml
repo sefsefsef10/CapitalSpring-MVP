@@ -92,27 +92,20 @@ steps:
         echo "$${API_URL}" > /workspace/api_url.txt
     waitFor: ['deploy-api']
 
-  # Build frontend with API URL
+  # Build frontend with hardcoded API URL (from already-deployed service)
   - id: 'build-frontend'
     name: 'gcr.io/cloud-builders/docker'
-    entrypoint: bash
     args:
-      - '-c'
-      - |
-        set -e
-        API_URL=$$(cat /workspace/api_url.txt | tr -d '\n\r')
-        echo "=== DEBUG ==="
-        echo "API_URL file contents:"
-        cat /workspace/api_url.txt
-        echo "API_URL variable: [$${API_URL}]"
-        echo "Full VITE_API_URL: $${API_URL}/api/v1"
-        echo "============="
-        docker build \
-          -t us-central1-docker.pkg.dev/${PROJECT_ID}/capitalspring/${_FRONTEND_SERVICE_NAME}:${_TAG} \
-          -t us-central1-docker.pkg.dev/${PROJECT_ID}/capitalspring/${_FRONTEND_SERVICE_NAME}:latest \
-          -f frontend/Dockerfile \
-          --build-arg "VITE_API_URL=$${API_URL}/api/v1" \
-          frontend
+      - 'build'
+      - '-t'
+      - 'us-central1-docker.pkg.dev/${PROJECT_ID}/capitalspring/${_FRONTEND_SERVICE_NAME}:${_TAG}'
+      - '-t'
+      - 'us-central1-docker.pkg.dev/${PROJECT_ID}/capitalspring/${_FRONTEND_SERVICE_NAME}:latest'
+      - '-f'
+      - 'frontend/Dockerfile'
+      - '--build-arg'
+      - 'VITE_API_URL=https://capitalspring-api-lammgoktvq-uc.a.run.app/api/v1'
+      - 'frontend'
     waitFor: ['get-api-url']
 
   - id: 'push-frontend'
