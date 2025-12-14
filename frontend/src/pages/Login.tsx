@@ -1,19 +1,23 @@
-import { useState, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useState, useEffect, useRef } from 'react'
+import { useNavigate, useLocation } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 
 export default function Login() {
   const { signInWithGoogle, user, loading: authLoading } = useAuth()
   const navigate = useNavigate()
+  const location = useLocation()
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
+  const hasRedirected = useRef(false)
 
   // Redirect if already logged in
   useEffect(() => {
-    if (!authLoading && user) {
-      navigate('/dashboard', { replace: true })
+    if (!authLoading && user && !hasRedirected.current) {
+      hasRedirected.current = true
+      const from = (location.state as { from?: { pathname: string } })?.from?.pathname || '/dashboard'
+      navigate(from, { replace: true })
     }
-  }, [user, authLoading, navigate])
+  }, [user, authLoading, navigate, location.state])
 
   const handleGoogleSignIn = async () => {
     try {

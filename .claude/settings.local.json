@@ -1,0 +1,38 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(find:*)",
+      "Bash(cat:*)",
+      "Bash(python -m venv:*)",
+      "Bash(venvScriptspip install -r requirements.txt)",
+      "Bash(./venv/Scripts/pip.exe install:*)",
+      "Bash(./venv/Scripts/python.exe -m alembic:*)",
+      "Bash(./venv/Scripts/uvicorn.exe:*)",
+      "Bash(curl:*)",
+      "Bash(npm install)",
+      "Bash(npm run dev:*)",
+      "Bash(taskkill:*)",
+      "Bash(python -m json.tool:*)",
+      "Bash(set GOOGLE_APPLICATION_CREDENTIALS=c:UsersshaneDocumentsCapitalSpring-MVPcapitalspring-mvpapicapitalspring-key.json:*)",
+      "Bash(timeout /t:*)",
+      "Bash(tasklist /FI 'IMAGENAME eq python.exe' /FO CSV)",
+      "Bash(findstr:*)",
+      "Bash(netstat:*)",
+      "Bash(cmd //c \"taskkill /PID 27316 /F\")",
+      "Bash(./venv/Scripts/python.exe:*)",
+      "Bash(cmd //c \"taskkill /F /IM uvicorn.exe\")",
+      "Bash(cmd //c \"taskkill /F /IM python.exe\")",
+      "Bash(dir:*)",
+      "Bash(npm install:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git push:*)",
+      "Bash(gh repo edit:*)",
+      "Bash(npm run build:*)",
+      "Bash(git check-ignore:*)",
+      "Bash(docker build:*)",
+      "Bash(ls:*)",
+      "Bash(git ls-files:*)"
+    ]
+  }
+}
