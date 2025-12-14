@@ -78,6 +78,7 @@ frontend/build/
 # GCP
 *.json
 !package.json
+!package-lock.json
 !tsconfig.json
 service-account-*.json
 credentials.json
