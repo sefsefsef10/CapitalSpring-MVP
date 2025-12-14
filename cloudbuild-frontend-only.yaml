@@ -1,0 +1,38 @@
+# Quick frontend-only rebuild
+substitutions:
+  _REGION: us-central1
+  _FRONTEND_SERVICE_NAME: capitalspring-frontend
+
+steps:
+  - id: 'build-frontend'
+    name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'build'
+      - '-t'
+      - 'us-central1-docker.pkg.dev/${PROJECT_ID}/capitalspring/${_FRONTEND_SERVICE_NAME}:latest'
+      - '-f'
+      - 'frontend/Dockerfile'
+      - '--build-arg'
+      - 'VITE_API_URL=https://capitalspring-api-nvpdrbsjda-uc.a.run.app/api/v1'
+      - '--no-cache'
+      - 'frontend'
+
+  - id: 'push-frontend'
+    name: 'gcr.io/cloud-builders/docker'
+    args: ['push', 'us-central1-docker.pkg.dev/${PROJECT_ID}/capitalspring/${_FRONTEND_SERVICE_NAME}:latest']
+
+  - id: 'deploy-frontend'
+    name: 'gcr.io/cloud-builders/gcloud'
+    args:
+      - 'run'
+      - 'deploy'
+      - '${_FRONTEND_SERVICE_NAME}'
+      - '--image'
+      - 'us-central1-docker.pkg.dev/${PROJECT_ID}/capitalspring/${_FRONTEND_SERVICE_NAME}:latest'
+      - '--region'
+      - '${_REGION}'
+      - '--platform'
+      - 'managed'
+      - '--allow-unauthenticated'
+
+timeout: 600s
