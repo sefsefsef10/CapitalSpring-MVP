@@ -80,25 +80,34 @@ steps:
   # Stage 2: Build Frontend with API URL
   # ============================================
 
-  # Get API URL and build frontend
-  - id: 'build-frontend'
-    name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+  # Get API URL and save to file
+  - id: 'get-api-url'
+    name: 'gcr.io/cloud-builders/gcloud'
     entrypoint: bash
     args:
       - '-c'
       - |
-        # Get the deployed API URL
         API_URL=$(gcloud run services describe ${_API_SERVICE_NAME} --region=${_REGION} --format='value(status.url)')
-        echo "Building frontend with API URL: $${API_URL}"
+        echo "Got API URL: $${API_URL}"
+        echo "$${API_URL}" > /workspace/api_url.txt
+    waitFor: ['deploy-api']
 
-        # Build frontend with the actual API URL
+  # Build frontend with API URL
+  - id: 'build-frontend'
+    name: 'gcr.io/cloud-builders/docker'
+    entrypoint: bash
+    args:
+      - '-c'
+      - |
+        API_URL=$(cat /workspace/api_url.txt)
+        echo "Building frontend with API URL: $${API_URL}"
         docker build \
           -t us-central1-docker.pkg.dev/${PROJECT_ID}/capitalspring/${_FRONTEND_SERVICE_NAME}:${_TAG} \
           -t us-central1-docker.pkg.dev/${PROJECT_ID}/capitalspring/${_FRONTEND_SERVICE_NAME}:latest \
           -f frontend/Dockerfile \
           --build-arg VITE_API_URL=$${API_URL}/api/v1 \
           frontend
-    waitFor: ['deploy-api']
+    waitFor: ['get-api-url']
 
   - id: 'push-frontend'
     name: 'gcr.io/cloud-builders/docker'
