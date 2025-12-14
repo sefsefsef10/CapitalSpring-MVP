@@ -1,14 +1,14 @@
 import { initializeApp } from 'firebase/app'
 import { getAuth, GoogleAuthProvider } from 'firebase/auth'
 
-// Firebase configuration - uses environment variables in production
+// Firebase configuration
 const firebaseConfig = {
-  apiKey: import.meta.env.VITE_FIREBASE_API_KEY || 'demo-api-key',
-  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || 'capitalspring-mvp.firebaseapp.com',
-  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || 'capitalspring-mvp',
-  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || 'capitalspring-mvp.appspot.com',
-  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || '',
-  appId: import.meta.env.VITE_FIREBASE_APP_ID || '',
+  apiKey: 'AIzaSyDxq5mMwdsahroOMppQCtd3UoP5hfXYPOI',
+  authDomain: 'capitalspring-cdd68.firebaseapp.com',
+  projectId: 'capitalspring-cdd68',
+  storageBucket: 'capitalspring-cdd68.firebasestorage.app',
+  messagingSenderId: '1044744439416',
+  appId: '1:1044744439416:web:e2b45ec368b2ddec414f8d',
 }
 
 // Initialize Firebase
