@@ -82,7 +82,7 @@ steps:
 
   # Get API URL and build frontend
   - id: 'build-frontend'
-    name: 'gcr.io/cloud-builders/docker'
+    name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
     entrypoint: bash
     args:
       - '-c'
