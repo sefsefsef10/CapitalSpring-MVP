@@ -75,13 +75,13 @@ frontend/build/
 *.tfvars
 !*.tfvars.example
 
-# GCP
-*.json
-!package.json
-!package-lock.json
-!tsconfig.json
+# GCP credentials (specific patterns, not *.json which breaks frontend)
+*-key.json
+*-credentials.json
 service-account-*.json
 credentials.json
+capitalspring-*.json
+firebase-*.json
 
 # OS
 .DS_Store
