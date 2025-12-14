@@ -1,36 +1,52 @@
-import { useState, useEffect, useRef } from 'react'
-import { useNavigate, useLocation } from 'react-router-dom'
+import { useState } from 'react'
+import { Link } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 
 export default function Login() {
   const { signInWithGoogle, user, loading: authLoading } = useAuth()
-  const navigate = useNavigate()
-  const location = useLocation()
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
-  const hasRedirected = useRef(false)
-
-  // Redirect if already logged in
-  useEffect(() => {
-    if (!authLoading && user && !hasRedirected.current) {
-      hasRedirected.current = true
-      const from = (location.state as { from?: { pathname: string } })?.from?.pathname || '/dashboard'
-      navigate(from, { replace: true })
-    }
-  }, [user, authLoading, navigate, location.state])
 
   const handleGoogleSignIn = async () => {
     try {
       setError(null)
       setLoading(true)
       await signInWithGoogle()
-      // Navigation happens via useEffect when user state updates
+      // After successful sign-in, redirect manually
+      window.location.href = '/dashboard'
     } catch (err) {
       setError('Failed to sign in with Google. Please try again.')
       console.error(err)
     } finally {
       setLoading(false)
     }
+  }
+
+  // Show loading while checking auth
+  if (authLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600"></div>
+      </div>
+    )
+  }
+
+  // If already logged in, show link to dashboard
+  if (user) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
+        <div className="sm:mx-auto sm:w-full sm:max-w-md text-center">
+          <h2 className="text-2xl font-bold text-gray-900">You're signed in!</h2>
+          <p className="mt-2 text-gray-600">Welcome, {user.displayName || user.email}</p>
+          <Link
+            to="/dashboard"
+            className="mt-4 inline-block px-6 py-3 bg-indigo-600 text-white rounded-md hover:bg-indigo-700"
+          >
+            Go to Dashboard
+          </Link>
+        </div>
+      </div>
+    )
   }
 
   return (
