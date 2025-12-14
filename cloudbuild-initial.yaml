@@ -144,29 +144,14 @@ steps:
     waitFor: ['push-frontend']
 
   # ============================================
-  # Stage 4: Update API CORS with Frontend URL
+  # Stage 4: Smoke Tests
   # ============================================
-
-  - id: 'update-cors'
-    name: 'gcr.io/cloud-builders/gcloud'
-    entrypoint: bash
-    args:
-      - '-c'
-      - |
-        FRONTEND_URL=$(gcloud run services describe ${_FRONTEND_SERVICE_NAME} --region=${_REGION} --format='value(status.url)')
-        echo "Updating API CORS to allow: $${FRONTEND_URL}"
-
-        gcloud run services update ${_API_SERVICE_NAME} \
-          --region=${_REGION} \
-          --update-env-vars="CORS_ORIGINS=[\"$${FRONTEND_URL}\",\"http://localhost:5173\"]"
-    waitFor: ['deploy-frontend']
-
-  # ============================================
-  # Stage 5: Smoke Tests
-  # ============================================
+  # Note: CORS is already set to ["*"] in deploy-api step, which works for MVP
+  # To restrict CORS later, manually run:
+  # gcloud run services update capitalspring-api --region=us-central1 --update-env-vars='CORS_ORIGINS=["https://your-frontend-url"]'
 
   - id: 'smoke-test'
-    name: 'gcr.io/cloud-builders/curl'
+    name: 'gcr.io/cloud-builders/gcloud'
     entrypoint: bash
     args:
       - '-c'
@@ -198,7 +183,7 @@ steps:
         FRONTEND_URL=$(gcloud run services describe ${_FRONTEND_SERVICE_NAME} --region=${_REGION} --format='value(status.url)')
         echo "Frontend URL: $${FRONTEND_URL}"
         echo "========================================="
-    waitFor: ['update-cors']
+    waitFor: ['deploy-frontend']
 
 # Images to be pushed
 images:
