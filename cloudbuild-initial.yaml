@@ -53,7 +53,7 @@ steps:
       - 'managed'
       - '--allow-unauthenticated'
       - '--set-env-vars'
-      - 'ENVIRONMENT=staging,USE_GCP=true,GCP_PROJECT_ID=${PROJECT_ID},GCS_BUCKET_NAME=${PROJECT_ID}-data,LOG_LEVEL=INFO,DOCUMENT_AI_LOCATION=us,CORS_ORIGINS=*'
+      - 'ENVIRONMENT=staging,USE_GCP=true,GCP_PROJECT_ID=${PROJECT_ID},GCS_BUCKET_NAME=${PROJECT_ID}-data,LOG_LEVEL=INFO,DOCUMENT_AI_LOCATION=us,CORS_ORIGINS=["*"]'
       - '--set-secrets'
       - 'ANTHROPIC_API_KEY=anthropic-api-key:latest,DATABASE_URL=capitalspring-db-url:latest'
       - '--vpc-connector'
