@@ -1,5 +1,4 @@
 import { useState } from 'react'
-import { Link } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 
 export default function Login() {
@@ -12,7 +11,7 @@ export default function Login() {
       setError(null)
       setLoading(true)
       await signInWithGoogle()
-      // After successful sign-in, redirect manually
+      // After successful sign-in, redirect manually with full page reload
       window.location.href = '/dashboard'
     } catch (err) {
       setError('Failed to sign in with Google. Please try again.')
@@ -31,20 +30,12 @@ export default function Login() {
     )
   }
 
-  // If already logged in, show link to dashboard
+  // If already logged in, redirect to dashboard with full page reload
   if (user) {
+    window.location.href = '/dashboard'
     return (
-      <div className="min-h-screen bg-gray-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
-        <div className="sm:mx-auto sm:w-full sm:max-w-md text-center">
-          <h2 className="text-2xl font-bold text-gray-900">You're signed in!</h2>
-          <p className="mt-2 text-gray-600">Welcome, {user.displayName || user.email}</p>
-          <Link
-            to="/dashboard"
-            className="mt-4 inline-block px-6 py-3 bg-indigo-600 text-white rounded-md hover:bg-indigo-700"
-          >
-            Go to Dashboard
-          </Link>
-        </div>
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600"></div>
       </div>
     )
   }
